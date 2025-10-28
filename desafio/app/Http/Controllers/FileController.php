@@ -51,4 +51,23 @@ class FileController extends Controller
             ], 500);
         }
     }
+
+    public function history(Request $request)
+    {
+        $query = UploadedFile::query();
+
+        if ($request->has('file_name')) {
+            $query->where('original_name', 'like', '%' . $request->file_name . '%');
+        }
+
+        if ($request->has('date')) {
+            $query->whereDate('created_at', $request->date);
+        }
+
+        $uploads = $query->orderBy('created_at', 'desc')->get();
+
+        return response()->json($uploads);
+    }
+
+
 }
