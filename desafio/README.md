@@ -105,6 +105,23 @@ TRUNCATE TABLE file_contents;   -- Para limpar os dados importados
 
 ```
 
+**Acessar o Bash do Container da Aplicação**
+
+```bash
+docker exec -it desafio-app-1 bash
+
+```
+
+
+## Documentação Interativa (Swagger UI)
+
+A documentação da API foi gerada usando o padrão OpenAPI (Swagger) e está disponível em uma interface interativa para testes e visualização.
+
+**URL de Acesso:**
+
+```http
+  GET http://localhost:8080/api/documentation
+```
 
 ## Documentação da API
 
@@ -129,7 +146,6 @@ TRUNCATE TABLE file_contents;   -- Para limpar os dados importados
 ```http
   GET http://localhost:8080/api/file-content
 ```
-
 
 ## Desafios
 
