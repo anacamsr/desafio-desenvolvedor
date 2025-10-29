@@ -9,8 +9,49 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
+/**
+ * @OA\Info(
+ * version="1.0.0",
+ * title="API de Importação e Busca - Desafio OT",
+ * description="Endpoints para upload de arquivos CSV, rastreamento de duplicidade e busca paginada no conteúdo."
+ * )
+ * @OA\Tag(
+ * name="Arquivos",
+ * description="Upload e Histórico de Arquivos."
+ * )
+ * @OA\Tag(
+ * name="Conteúdo",
+ * description="Busca e Listagem de Conteúdo."
+ * )
+ */
+
 class FileController extends Controller
 {
+    /**
+     * @OA\Post(
+     * path="/api/upload",
+     * tags={"Arquivos"},
+     * summary="Faz o upload e importa um arquivo CSV/TXT.",
+     * description="O arquivo é rastreado por hash para evitar duplicidade. Limite max: 128MB.",
+     * @OA\RequestBody(
+     * required=true,
+     * @OA\MediaType(
+     * mediaType="multipart/form-data",
+     * @OA\Schema(
+     * @OA\Property(property="file", type="string", format="binary", description="O arquivo CSV a ser enviado.")
+     * )
+     * )
+     * ),
+     * @OA\Response(
+     * response=201,
+     * description="Upload e importação concluídos com sucesso."
+     * ),
+     * @OA\Response(
+     * response=422,
+     * description="Erro de validação (tamanho, hash duplicado ou formato)."
+     * )
+     * )
+     */
     public function upload(Request $request)
     {
         try {
@@ -22,11 +63,11 @@ class FileController extends Controller
 
             $file = $request->file('file');
             $originalName = $file->getClientOriginalName();
-            
+
             $fileName = Str::random(40) . '.' . $file->getClientOriginalExtension();
             $storageDir = 'uploads';
 
-            $uploadedFilePath = $file->storeAs($storageDir, $fileName, 'local'); 
+            $uploadedFilePath = $file->storeAs($storageDir, $fileName, 'local');
 
             $fullPathForHash = Storage::path($uploadedFilePath);
 
@@ -35,7 +76,7 @@ class FileController extends Controller
                 'storage_path' => $uploadedFilePath,
                 'mime_type' => $file->getMimeType(),
                 'size' => $file->getSize(),
-                'file_hash' => hash_file('sha256', $fullPathForHash), 
+                'file_hash' => hash_file('sha256', $fullPathForHash),
             ]);
 
             $this->importCsvToDatabase($uploadedFilePath);
@@ -74,7 +115,7 @@ class FileController extends Controller
         $csvData = array_map('str_getcsv', $allCsvLines);
 
         if (count($csvData) < 1) {
-            return; 
+            return;
         }
 
         $columnMap = [
@@ -87,13 +128,13 @@ class FileController extends Controller
         ];
 
         $requiredColumn = 'RptDt';
-        $foundHeader = null; 
-        $dataStartIndex = -1; 
-        
+        $foundHeader = null;
+        $dataStartIndex = -1;
+
         for ($i = 0; $i < min(5, count($csvData)); $i++) {
             $possibleHeader = array_map('trim', $csvData[$i]);
             $normalizedHeader = array_map('strtoupper', $possibleHeader);
-            
+
             $requiredFound = false;
             foreach ($columnMap[$requiredColumn] as $name) {
                 if (in_array(strtoupper($name), $normalizedHeader)) {
@@ -101,7 +142,7 @@ class FileController extends Controller
                     break;
                 }
             }
-            
+
             if ($requiredFound) {
                 $foundHeader = $possibleHeader;
                 $dataStartIndex = $i + 1;
@@ -111,43 +152,43 @@ class FileController extends Controller
 
         if (!$foundHeader) {
             \Log::error("Importação falhou: A coluna obrigatória '{$requiredColumn}' não foi encontrada nas primeiras 5 linhas do CSV.");
-            return; 
+            return;
         }
-        
+
         $header = $foundHeader;
-        
+
         $matchedColumns = [];
         foreach ($columnMap as $dbColumn => $possibleNames) {
             foreach ($possibleNames as $possibleName) {
                 $normalizedName = trim(strtoupper($possibleName));
                 $index = array_search($normalizedName, array_map('strtoupper', $header));
-                
+
                 if ($index !== false) {
-                    $matchedColumns[$dbColumn] = $header[$index]; 
+                    $matchedColumns[$dbColumn] = $header[$index];
                     break;
                 }
             }
         }
-        
+
         for ($i = $dataStartIndex; $i < count($csvData); $i++) {
             $row = $csvData[$i];
-            
+
             if (count($row) < count($header)) {
-                 \Log::warning("Linha de dados pulada: contagem de colunas insuficiente. Linha: " . json_encode($row));
-                 continue;
+                \Log::warning("Linha de dados pulada: contagem de colunas insuficiente. Linha: " . json_encode($row));
+                continue;
             }
-            
+
             $csvRow = @array_combine($header, $row);
 
             if ($csvRow === false) {
-                 \Log::warning("Linha pulada: Falha ao combinar cabeçalho/linha. Linha: " . json_encode($row));
-                 continue;
+                \Log::warning("Linha pulada: Falha ao combinar cabeçalho/linha. Linha: " . json_encode($row));
+                continue;
             }
 
             $rptDtKey = $matchedColumns['RptDt'];
             if (empty($csvRow[$rptDtKey])) {
                 \Log::warning("Linha do CSV pulada: Coluna 'RptDt' é obrigatória e está nula. Linha: " . json_encode($row));
-                continue; 
+                continue;
             }
 
             try {
@@ -161,10 +202,22 @@ class FileController extends Controller
                 ]);
             } catch (\Exception $e) {
                 \Log::warning("ERRO DE DADOS CSV: Falha ao inserir linha. Motivo: " . $e->getMessage() . " | Linha CSV: " . json_encode($csvRow));
-                continue; 
+                continue;
             }
         }
     }
+
+    /**
+     * @OA\Get(
+     * path="/api/history",
+     * tags={"Arquivos"},
+     * summary="Lista o histórico de uploads.",
+     * @OA\Response(
+     * response=200,
+     * description="Lista de arquivos carregados (metadados)."
+     * )
+     * )
+     */
 
     public function history(Request $request)
     {
@@ -182,6 +235,33 @@ class FileController extends Controller
 
         return response()->json($uploads);
     }
+
+    /**
+     * @OA\Get(
+     * path="/api/file-content",
+     * tags={"Conteúdo"},
+     * summary="Busca paginada no conteúdo importado.",
+     * description="A resposta é sempre paginada e permite filtros por query parameters.",
+     * @OA\Parameter(
+     * name="TckrSymb",
+     * in="query",
+     * required=false,
+     * @OA\Schema(type="string"),
+     * description="Filtra pelo Símbolo (Ticker)."
+     * ),
+     * @OA\Parameter(
+     * name="RptDt",
+     * in="query",
+     * required=false,
+     * @OA\Schema(type="string", format="date"),
+     * description="Filtra pela Data do Relatório (YYYY-MM-DD)."
+     * ),
+     * @OA\Response(
+     * response=200,
+     * description="Lista de conteúdo paginado."
+     * )
+     * )
+     */
 
     public function search(Request $request)
     {

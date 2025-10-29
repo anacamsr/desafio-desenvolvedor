@@ -1,0 +1,105 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "API de Importação e Busca - Desafio OT",
+        "description": "Endpoints para upload de arquivos CSV, rastreamento de duplicidade e busca paginada no conteúdo.",
+        "version": "1.0.0"
+    },
+    "paths": {
+        "/api/upload": {
+            "post": {
+                "tags": [
+                    "Arquivos"
+                ],
+                "summary": "Faz o upload e importa um arquivo CSV/TXT.",
+                "description": "O arquivo é rastreado por hash para evitar duplicidade. Limite max: 128MB.",
+                "operationId": "b4116c9c1cbcf1030ec056ee6176a3dc",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "properties": {
+                                    "file": {
+                                        "description": "O arquivo CSV a ser enviado.",
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Upload e importação concluídos com sucesso."
+                    },
+                    "422": {
+                        "description": "Erro de validação (tamanho, hash duplicado ou formato)."
+                    }
+                }
+            }
+        },
+        "/api/history": {
+            "get": {
+                "tags": [
+                    "Arquivos"
+                ],
+                "summary": "Lista o histórico de uploads.",
+                "operationId": "a7626467684ed168ee635a4f7e821e8c",
+                "responses": {
+                    "200": {
+                        "description": "Lista de arquivos carregados (metadados)."
+                    }
+                }
+            }
+        },
+        "/api/file-content": {
+            "get": {
+                "tags": [
+                    "Conteúdo"
+                ],
+                "summary": "Busca paginada no conteúdo importado.",
+                "description": "A resposta é sempre paginada e permite filtros por query parameters.",
+                "operationId": "f821939b7a4dd0d99481d76d7ac43cd0",
+                "parameters": [
+                    {
+                        "name": "TckrSymb",
+                        "in": "query",
+                        "description": "Filtra pelo Símbolo (Ticker).",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "RptDt",
+                        "in": "query",
+                        "description": "Filtra pela Data do Relatório (YYYY-MM-DD).",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista de conteúdo paginado."
+                    }
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Arquivos",
+            "description": "Upload e Histórico de Arquivos."
+        },
+        {
+            "name": "Conteúdo",
+            "description": "Busca e Listagem de Conteúdo."
+        }
+    ]
+}
